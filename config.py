@@ -2,10 +2,10 @@
 # Configuration settings for the Nifty trading system
 
 # Angel One SmartAPI credentials
-API_KEY = "U6nj9f8I"          # Your Angel One API key
-CLIENT_ID = "MAKV1043"      # Your Angel One client ID
-PASSWORD = "7620"        # Your Angel One password
-TOTP_SECRET = "J6YUXDPASDVORH6UYVYBP2KW6Y"  # Your TOTP secret for 2FA (if applicable)
+API_KEY = ""          # Your Angel One API key
+CLIENT_ID = ""      # Your Angel One client ID
+PASSWORD = ""        # Your Angel One password
+TOTP_SECRET = ""  # Your TOTP secret for 2FA (if applicable)
 
 # WebSocket and trading parameters
 NIFTY_TOKEN = "99926000"               # Angel One token for Nifty 50 (LTP feed)
