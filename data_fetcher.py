@@ -25,14 +25,14 @@ class DataFetcher:
         self.auth_token = data['data']['jwtToken']
         self.feed_token = data['data']['feedToken']
         print("Authenticated successfully. Tokens obtained.")
-
+        
     def on_data(self, wsapp, message):
         """Handle incoming WebSocket messages"""
-        print(f"Raw message: {message}")  # Debug print
+        # print(f"Raw message: {message}")  # Debug print
         if isinstance(message, dict) and 'last_traded_price' in message:
             ltp = float(message['last_traded_price']) / 100  # Convert paise to INR
             timestamp = message.get('exchange_timestamp', None)
-            print(f"Tick received - LTP: {ltp}, Timestamp: {timestamp}")  # Debug print
+            # print(f"Tick received - LTP: {ltp}, Timestamp: {timestamp}")  # Debug print
             self.on_tick_callback(ltp, timestamp)
 
     def on_open(self, wsapp):
@@ -40,7 +40,7 @@ class DataFetcher:
         print("WebSocket V2 connection opened.")
         token_list = [{"exchangeType": "1", "tokens": [self.token]}]  # NSE
         self.ws.subscribe(self.correlation_id, 1, token_list)  # Mode 1 = LTP
-        print(f"Subscribed to Nifty token: {self.token}")
+        # print(f"Subscribed to Nifty token: {self.token}")
 
     def on_error(self, wsapp, error):
         """Handle WebSocket errors"""
@@ -68,15 +68,18 @@ class DataFetcher:
 
     def stop(self):
         """Stop the WebSocket connection"""
-        if self.ws and self.running:
-            self.ws.close()
+        if self.running and self.ws:
+            try:
+                self.ws.close_connection()  # Correct method for SmartWebSocketV2
+            except AttributeError:
+                print("Warning: Could not close WebSocket cleanly")
             self.running = False
 
 # Example usage
 if __name__ == "__main__":
     def dummy_callback(ltp, timestamp):
-        print(f"LTP: {ltp}, Timestamp: {timestamp}")
-    
+        # print(f"LTP: {ltp}, Timestamp: {timestamp}")
+        print(f"Program running")
     fetcher = DataFetcher(dummy_callback)
     fetcher.start()
     input("Press Enter to stop...\n")

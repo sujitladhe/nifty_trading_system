@@ -1,6 +1,7 @@
 # trade_executor.py
 # Logs paper trades instead of executing real orders
 
+import requests
 from config import LOT_SIZE, NIFTY_TOKEN
 import time
 import pandas as pd
@@ -13,13 +14,21 @@ class TradeExecutor:
         self.data_fetcher = data_fetcher
         self.active_trade = None
         self.log_file = "paper_trades.log"
+        self.telegram_bot_token = '7304000359:AAFkzdTKOFkoI1ucgWXZ-rH4fYB8cnWbQhc'  # Replace with your token
+        self.telegram_chat_id = '669766342'     # Replace with your cha
+
+    def send_telegram_message(self, message):
+        url = f"https://api.telegram.org/bot{self.telegram_bot_token}/sendMessage"
+        payload = {'chat_id': self.telegram_chat_id, 'text': message}
+        requests.post(url, data=payload)
 
     def log_trade(self, message):
         """Log trade details to file with timestamp"""
         with open(self.log_file, 'a') as f:
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
             f.write(f"[{timestamp}] {message}\n")
-
+            self.send_telegram_message(message)  # Send to Telegram
+            
     def fetch_instrument_list(self):
         """Fetch and cache Angel One's instrument list if not available locally"""
         instrument_file = "instrument_list.csv"
@@ -65,15 +74,15 @@ class TradeExecutor:
         """Log a paper trade instead of placing a real order"""
         atm_strike = self.get_atm_strike(ltp)
         symbol = "NIFTY"
-        expiry = "10APR"  # Update to current weekly expiry (e.g., April 10, 2025)
+        expiry = "10APR"  # Hardcoded for now—update dynamically for April 17, 2025, etc.
         option_type = "CE" if signal['type'] == 'buy' else "PE"
         trading_symbol = f"{symbol}{expiry}{atm_strike}{option_type}"
 
         trade_details = {
             'type': signal['type'],
-            'entry_price': ltp,
-            'stop_loss': signal['sl'],
-            'take_profit': signal['tp'],
+            'entry_price': float(ltp),  # Ensure float for consistency
+            'stop_loss': float(signal['sl']),
+            'take_profit': float(signal['tp']),
             'symbol': trading_symbol,
             'quantity': LOT_SIZE
         }
@@ -84,36 +93,39 @@ class TradeExecutor:
 
     def monitor_trade(self, ltp):
         """Monitor LTP and log exit if SL or TP is hit"""
-        if not self.active_trade:
-            return None
+        if self.active_trade is None:
+            return None  # No active trade to monitor
 
         trade_type = self.active_trade['type']
-        current_price = ltp
+        current_price = float(ltp)  # Ensure float
+        entry = self.active_trade['entry_price']
+        sl = self.active_trade['stop_loss']
+        tp = self.active_trade['take_profit']
+        symbol = self.active_trade['symbol']
 
         if trade_type == 'buy':
-            if current_price <= self.active_trade['stop_loss']:
-                profit = self.active_trade['stop_loss'] - self.active_trade['entry_price']
+            profit = current_price - entry
+            if current_price <= sl:
                 self.log_exit("STOPLOSS", profit)
-                return {'type': 'exit', 'exit': self.active_trade['stop_loss'], 'profit': profit}
-            elif current_price >= self.active_trade['take_profit']:
-                profit = self.active_trade['take_profit'] - self.active_trade['entry_price']
+                return {'type': 'exit', 'exit': sl, 'profit': profit}
+            elif current_price >= tp:
                 self.log_exit("TAKEPROFIT", profit)
-                return {'type': 'exit', 'exit': self.active_trade['take_profit'], 'profit': profit}
+                return {'type': 'exit', 'exit': tp, 'profit': profit}
         elif trade_type == 'sell':
-            if current_price >= self.active_trade['stop_loss']:
-                profit = self.active_trade['entry_price'] - self.active_trade['stop_loss']
+            profit = entry - current_price  # Fixed: Correct sell profit calc
+            if current_price >= sl:
                 self.log_exit("STOPLOSS", profit)
-                return {'type': 'exit', 'exit': self.active_trade['stop_loss'], 'profit': profit}
-            elif current_price <= self.active_trade['take_profit']:
-                profit = self.active_trade['entry_price'] - self.active_trade['take_profit']
+                return {'type': 'exit', 'exit': sl, 'profit': profit}
+            elif current_price <= tp:
                 self.log_exit("TAKEPROFIT", profit)
-                return {'type': 'exit', 'exit': self.active_trade['take_profit'], 'profit': profit}
+                return {'type': 'exit', 'exit': tp, 'profit': profit}
         return None
 
     def log_exit(self, reason, profit):
         """Log the exit of a paper trade"""
         if self.active_trade:
-            message = f"Paper Trade Exit - {self.active_trade['symbol']} | Reason: {reason} | Exit: {self.active_trade['stop_loss' if reason == 'STOPLOSS' else 'take_profit']} | Profit: {profit:.2f} points"
+            exit_price = self.active_trade['stop_loss'] if reason == 'STOPLOSS' else self.active_trade['take_profit']
+            message = f"Paper Trade Exit - {self.active_trade['symbol']} | Reason: {reason} | Exit: {exit_price} | Profit: {profit:.2f} points"
             self.log_trade(message)
             print(message)
             self.active_trade = None
